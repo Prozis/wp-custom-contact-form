@@ -218,13 +218,10 @@ class Contact_Form {
     <textarea name="message">' . $message . ' </textarea>
     </div>
     
-    
-    
     <div>
     <label for="email">E-mail <strong>*</strong></label>
     <input type="text" name="email" value="' . $email . '">
     </div>
-
     
     <input type="submit" name="submit" value="Send mail"/>
     </form>
@@ -270,10 +267,6 @@ class Contact_Form {
 			//add message to log
 			$logMessage = 'Email sent from ' . $email;
 			$this->log( $logMessage );
-
-
-			//API with hubspot.com
-
 
 			echo 'Email sended';
 		}
