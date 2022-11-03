@@ -185,11 +185,7 @@ class Contact_Form {
 	 */
 	public function run() {
 		$this->loader->run();
-
-
 		$this->add_short_code();
-
-
 	}
 
 	protected function add_contact_form() {
@@ -219,7 +215,7 @@ class Contact_Form {
 
     <div>
     <label for="message">Message <strong>*</strong></label>
-    <input type="text" name="message" value="' . $message . '">
+    <textarea name="message">' . $message . ' </textarea>
     </div>
     
     
@@ -261,7 +257,6 @@ class Contact_Form {
 				echo '</div>';
 
 			}
-
 		}
 
 
@@ -271,6 +266,13 @@ class Contact_Form {
 		if ( 1 > count( $this->reg_errors->get_error_messages() ) ) {
 			$admin_email = get_option( 'admin_email' );
 			wp_mail( $admin_email, $subject, $message );
+
+			//add message to log
+			$logMessage = 'Email sent from ' . $email;
+			$this->log( $logMessage );
+
+
+			//API with hubspot.com
 
 
 			echo 'Email sended';
@@ -294,8 +296,6 @@ class Contact_Form {
 			$message   = sanitize_text_field( $_POST['message'] );
 			$email     = sanitize_email( $_POST['email'] );
 
-			// вызов @function complete_registration, чтобы создать пользователя
-			// только если не обнаружено WP_error
 			$this->complete_contact_form(
 				$firstname, $lastName, $subject, $message, $email
 			);
@@ -313,6 +313,15 @@ class Contact_Form {
 		} );
 	}
 
+	/**
+	 * Prints a message to the debug file that can easily be called by any subclass.
+	 *
+	 * @param mixed $message an object, array, string, number, or other data to write to the debug log
+	 *
+	 */
+	protected function log( $message ) {
+		error_log( print_r( $message, true ) );
+	}
 
 	/**
 	 * The name of the plugin used to uniquely identify it within the context of
