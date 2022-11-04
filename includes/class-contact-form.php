@@ -57,7 +57,10 @@ class Contact_Form {
 	 */
 	protected $version;
 
-	protected $reg_errors;
+    /**
+     * @var WP_Error
+     */
+    protected $reg_errors;
 
 	/**
 	 * Define the core functionality of the plugin.
@@ -188,7 +191,12 @@ class Contact_Form {
 		$this->add_short_code();
 	}
 
-	protected function add_contact_form() {
+    /**
+     * Generate form html
+     *
+     * @return void
+     */
+    protected function add_contact_form() {
 		$firstname = $_POST['firstname'] ?? null;
 		$lastName  = $_POST['lastname'] ?? null;
 		$subject   = $_POST['subject'] ?? null;
@@ -229,7 +237,17 @@ class Contact_Form {
     ';
 	}
 
-	protected function contact_form_validation( $firstname, $lastName, $subject, $message, $email ) {
+    /**
+     * Validation data from form
+     *
+     * @param $firstname
+     * @param $lastName
+     * @param $subject
+     * @param $message
+     * @param $email
+     * @return void
+     */
+    protected function contact_form_validation($firstname, $lastName, $subject, $message, $email ) {
 		if ( empty( $firstname ) || empty( $lastName ) || empty( $subject ) || empty( $message ) || empty( $email ) ) {
 			$this->reg_errors->add( 'field', 'Required form field is missing' );
 		}
@@ -256,24 +274,55 @@ class Contact_Form {
 			}
 		}
 
-
 	}
 
-	protected function complete_contact_form( $firstname, $lastName, $subject, $message, $email ) {
+    /**
+     * Execution of sending email, writing to the log and sending data to the Hubspot
+     *
+     * @param $firstname
+     * @param $lastName
+     * @param $subject
+     * @param $message
+     * @param $email
+     * @return void
+     */
+    protected function complete_contact_form($firstname, $lastName, $subject, $message, $email ) {
 		if ( 1 > count( $this->reg_errors->get_error_messages() ) ) {
 			$admin_email = get_option( 'admin_email' );
-			wp_mail( $admin_email, $subject, $message );
 
-			//add message to log
-			$logMessage = 'Email sent from ' . $email;
-			$this->log( $logMessage );
+            //send email
+            $headers = [
+                'From: ' . $firstname . ' ' . $lastName . ' <' . $email . '>',
+            ];
 
-			echo 'Email sended';
+			if (wp_mail( $admin_email, $subject, $message, $headers )) {
+                //add message to log if sent successfully
+                $logMessage = 'Email sent from ' . $email;
+                $this->log( $logMessage );
+
+                //Create Contact at hubspot.com
+                $this->createContactAtHubspot($firstname, $lastName, $email);
+
+                echo '<div>';
+                echo '<strong>Email sent successfully</strong>:';
+                echo '</div>';
+            } else {
+                $this->log( 'Failed to send email' );
+
+                echo '<div>';
+                echo '<strong>Failed to send email</strong>:';
+                echo '</div>';
+            }
 		}
 	}
 
 
-	protected function custom_contact_form_main() {
+    /**
+     * Main method
+     *
+     * @return void
+     */
+    protected function custom_contact_form_main() {
 		if ( isset( $_POST['submit'] ) ) {
 			$this->contact_form_validation(
 				$_POST['firstname'],
@@ -297,7 +346,12 @@ class Contact_Form {
 		$this->add_contact_form();
 	}
 
-	protected function add_short_code() {
+    /**
+     * Add shortcode for custom form
+     *
+     * @return void
+     */
+    protected function add_short_code() {
 		add_shortcode( 'cf_custom_contact_form', function () {
 			ob_start();
 			$this->custom_contact_form_main();
@@ -307,14 +361,70 @@ class Contact_Form {
 	}
 
 	/**
-	 * Prints a message to the debug file that can easily be called by any subclass.
+	 * Prints a message to the plugin log
 	 *
-	 * @param mixed $message an object, array, string, number, or other data to write to the debug log
+	 * @param string $message
 	 *
 	 */
 	protected function log( $message ) {
-		error_log( print_r( $message, true ) );
-	}
+        $file = fopen("wp-content/contact-form-plugin.log","a");
+        echo fwrite($file, "\n" . date('Y-m-d h:i:s') . " :: " . $message);
+        fclose($file);
+    }
+
+    /**
+     * Create contact at hubspot.com with API
+     *
+     * @param string $firstname
+     * @param string $lastName
+     * @param string $email
+     *
+     */
+    protected function createContactAtHubspot($firstname, $lastName, $email) {
+        $contactProperties = [
+            'properties' => [
+                [
+                    'property' => 'firstname',
+                    'value' => $firstname
+                ],
+                [
+                    'property' => 'lastname',
+                    'value' => $lastName
+                ],
+                [
+                    'property' => 'email',
+                    'value' => $email
+                ],
+            ],
+
+        ];
+
+        $post_json = json_encode($contactProperties);
+
+        $apikey = 'pat-eu1-2bd54d0e-6488-4326-978f-e5c86ee66e41';
+
+        $headers = [
+            'Content-Type: application/json',
+            'authorization: Bearer ' . $apikey
+        ];
+
+        $endpoint = 'https://api.hubapi.com/contacts/v1/contact';
+        $ch = @curl_init();
+        @curl_setopt($ch, CURLOPT_POST, true);
+        @curl_setopt($ch, CURLOPT_POSTFIELDS, $post_json);
+        @curl_setopt($ch, CURLOPT_URL, $endpoint);
+        @curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        @curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $response = @curl_exec($ch);
+        $status_code = @curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_errors = curl_error($ch);
+        @curl_close($ch);
+
+        // for debug
+//        echo "curl Errors: " . $curl_errors;
+//        echo "\nStatus code: " . $status_code;
+//        echo "\nResponse: " . $response;
+    }
 
 	/**
 	 * The name of the plugin used to uniquely identify it within the context of
